@@ -96,7 +96,7 @@ button:focus-visible {
 
 canvas {
   border: 1px solid #000000;
-  border-radius: 10px;
-  border-width: 2px;
-  filter: drop-shadow(0 0 3px #ffffff);
+  border-radius: 15px;
+  border-width: 1px;
+  filter: drop-shadow(0 0 1px #ffffff);
 }
