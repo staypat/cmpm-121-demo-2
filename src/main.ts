@@ -17,10 +17,37 @@ app.append(canvas);
 
 const ctx = canvas.getContext("2d")!;
 
-const lines: { x: number; y: number; }[][] = [];
-const redoLines: { x: number; y: number; }[][] = [];
+interface Displayable{
+    display(context: CanvasRenderingContext2D): void;
+}
 
-let currentLine: { x: number; y: number; }[] | null = null;
+class MarkerLine implements Displayable{
+    private points: { x: number; y: number; }[] = [];
+
+    constructor(initialPoint: { x: number; y: number; }) {
+        this.points.push(initialPoint);
+    }
+
+    drag(x: number, y: number): void {
+        this.points.push({ x, y });
+    }
+
+    display(context: CanvasRenderingContext2D): void {
+        if (this.points.length > 1) {
+            context.beginPath();
+            const { x, y } = this.points[0];
+            context.moveTo(x, y);
+            for (const { x, y } of this.points) {
+                context.lineTo(x, y);
+            }
+            context.stroke();
+        }
+    }
+}
+const lines: Displayable[] = [];
+const redoLines: Displayable[] = [];
+
+let currentLine: MarkerLine | null = null;
 
 const cursor = {active: false, x: 0, y: 0};
 
@@ -29,17 +56,16 @@ canvas.addEventListener("mousedown", (event) =>{
     cursor.x = event.offsetX;
     cursor.y = event.offsetY;
 
-    currentLine = [];
+    currentLine = new MarkerLine({x: cursor.x, y: cursor.y});
     lines.push(currentLine);
-    redoLines.splice(0, redoLines.length);
-    currentLine.push({x: cursor.x, y: cursor.y});
+    redoLines.length = 0;
 })
 
 canvas.addEventListener("mousemove", (event) =>{
     if(cursor.active && currentLine){
         cursor.x = event.offsetX;
         cursor.y = event.offsetY;
-        currentLine.push({ x: cursor.x, y: cursor.y });
+        currentLine.drag(cursor.x, cursor.y );
         canvas.dispatchEvent(new Event("drawing-changed"));
     }
 })
@@ -55,17 +81,7 @@ canvas.addEventListener("drawing-changed", () => {
 
 function redraw(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    lines.forEach(line => {
-        if(line.length > 1){
-            ctx.beginPath();
-            const {x, y} = line[0];
-            ctx.moveTo(x, y);
-            for(const {x, y} of line){
-                ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-        }
-    });
+    lines.forEach(line => line.display(ctx));
 }
 
 const clearButton = document.createElement("button");
