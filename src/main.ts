@@ -17,11 +17,15 @@ app.append(canvas);
 
 const ctx = canvas.getContext("2d")!;
 
-interface Displayable{
+interface Drawable {
+    draw(context: CanvasRenderingContext2D): void;
+}
+
+interface Displayable {
     display(context: CanvasRenderingContext2D): void;
 }
 
-class MarkerLine implements Displayable{
+class MarkerLine implements Drawable {
     private points: { x: number; y: number; }[] = [];
     private lineWidth: number;
 
@@ -34,7 +38,7 @@ class MarkerLine implements Displayable{
         this.points.push({ x, y });
     }
 
-    display(context: CanvasRenderingContext2D): void {
+    draw(context: CanvasRenderingContext2D): void {
         if (this.points.length > 1) {
             context.lineWidth = this.lineWidth;
             context.beginPath();
@@ -48,46 +52,77 @@ class MarkerLine implements Displayable{
     }
 }
 
-const lines: Displayable[] = [];
-const redoLines: Displayable[] = [];
+class ToolPreview implements Displayable {
+    private x: number;
+    private y: number;
+    private lineWidth: number;
+
+    constructor(lineWidth: number) {
+        this.x = 0;
+        this.y = 0;
+        this.lineWidth = lineWidth;
+    }
+
+    updatePosition(x: number, y: number): void {
+        this.x = x;
+        this.y = y;
+    }
+
+    display(context: CanvasRenderingContext2D): void {
+        context.lineWidth = 1;
+        context.beginPath();
+        context.arc(this.x, this.y, this.lineWidth / 2, 0, Math.PI * 2);
+        context.stroke();
+    }
+}
+
+const lines: Drawable[] = [];
+const redoLines: Drawable[] = [];
 
 let currentLine: MarkerLine | null = null;
+let toolPreview: ToolPreview | null = new ToolPreview(3);
 let currentLineWidth = 3;
 let selectedButton: HTMLButtonElement | null = null;
 
-const cursor = {active: false, x: 0, y: 0};
-
-canvas.addEventListener("mousedown", (event) =>{
-    cursor.active = true;
-    cursor.x = event.offsetX;
-    cursor.y = event.offsetY;
-
-    currentLine = new MarkerLine({x: cursor.x, y: cursor.y}, currentLineWidth);
+canvas.addEventListener("mousedown", (event) => {
+    currentLine = new MarkerLine({ x: event.offsetX, y: event.offsetY }, currentLineWidth);
     lines.push(currentLine);
     redoLines.length = 0;
-})
+    toolPreview = null;
+});
 
-canvas.addEventListener("mousemove", (event) =>{
-    if(cursor.active && currentLine){
-        cursor.x = event.offsetX;
-        cursor.y = event.offsetY;
-        currentLine.drag(cursor.x, cursor.y );
-        canvas.dispatchEvent(new Event("drawing-changed"));
+canvas.addEventListener("mousemove", (event) => {
+    if (toolPreview !== null) {
+        toolPreview.updatePosition(event.offsetX, event.offsetY);
     }
-})
+    if (currentLine) {
+        currentLine.drag(event.offsetX, event.offsetY);
+        canvas.dispatchEvent(new Event("drawing-changed"));
+    } else {
+        canvas.dispatchEvent(new Event("tool-moved"));
+    }
+});
 
-canvas.addEventListener("mouseup", () =>{
-    cursor.active = false;
+canvas.addEventListener("mouseup", () => {
     currentLine = null;
-})
+    toolPreview = new ToolPreview(currentLineWidth);
+    canvas.dispatchEvent(new Event("drawing-changed"));
+});
 
 canvas.addEventListener("drawing-changed", () => {
     redraw();
 });
 
-function redraw(){
+canvas.addEventListener("tool-moved", () => {
+    redraw();
+    if (toolPreview !== null) {
+        toolPreview.display(ctx);
+    }
+});
+
+function redraw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    lines.forEach(line => line.display(ctx));
+    lines.forEach(line => line.draw(ctx));
 }
 
 interface Tool {
@@ -103,6 +138,7 @@ const toolBar: Tool[] = [
             lines.length = 0;
             redoLines.length = 0;
             currentLineWidth = 3;
+            toolPreview = new ToolPreview(currentLineWidth);
             updateSelectedButton(null);
         }
     },
@@ -113,7 +149,6 @@ const toolBar: Tool[] = [
             if (lastLine) {
                 redoLines.push(lastLine);
                 canvas.dispatchEvent(new Event("drawing-changed"));
-                currentLineWidth = 3;
             }
             updateSelectedButton(null);
         }
@@ -125,7 +160,6 @@ const toolBar: Tool[] = [
             if (lastRedoLine) {
                 lines.push(lastRedoLine);
                 canvas.dispatchEvent(new Event("drawing-changed"));
-                currentLineWidth = 3;
             }
             updateSelectedButton(null);
         }
@@ -134,12 +168,15 @@ const toolBar: Tool[] = [
         name: "Thin Marker",
         onClick: () => {
             currentLineWidth = 1;
+            toolPreview = new ToolPreview(currentLineWidth);
             updateSelectedButton(thinMarkerButton);
         }
-    },{
+    },
+    {
         name: "Thick Marker",
         onClick: () => {
             currentLineWidth = 5;
+            toolPreview = new ToolPreview(currentLineWidth);
             updateSelectedButton(thickMarkerButton);
         }
     }
