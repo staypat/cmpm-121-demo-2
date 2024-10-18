@@ -23,9 +23,11 @@ interface Displayable{
 
 class MarkerLine implements Displayable{
     private points: { x: number; y: number; }[] = [];
+    private lineWidth: number;
 
-    constructor(initialPoint: { x: number; y: number; }) {
+    constructor(initialPoint: { x: number; y: number; }, lineWidth: number) {
         this.points.push(initialPoint);
+        this.lineWidth = lineWidth;
     }
 
     drag(x: number, y: number): void {
@@ -34,6 +36,7 @@ class MarkerLine implements Displayable{
 
     display(context: CanvasRenderingContext2D): void {
         if (this.points.length > 1) {
+            context.lineWidth = this.lineWidth;
             context.beginPath();
             const { x, y } = this.points[0];
             context.moveTo(x, y);
@@ -44,10 +47,13 @@ class MarkerLine implements Displayable{
         }
     }
 }
+
 const lines: Displayable[] = [];
 const redoLines: Displayable[] = [];
 
 let currentLine: MarkerLine | null = null;
+let currentLineWidth = 3;
+let selectedButton: HTMLButtonElement | null = null;
 
 const cursor = {active: false, x: 0, y: 0};
 
@@ -56,7 +62,7 @@ canvas.addEventListener("mousedown", (event) =>{
     cursor.x = event.offsetX;
     cursor.y = event.offsetY;
 
-    currentLine = new MarkerLine({x: cursor.x, y: cursor.y});
+    currentLine = new MarkerLine({x: cursor.x, y: cursor.y}, currentLineWidth);
     lines.push(currentLine);
     redoLines.length = 0;
 })
@@ -84,33 +90,83 @@ function redraw(){
     lines.forEach(line => line.display(ctx));
 }
 
-const clearButton = document.createElement("button");
-clearButton.innerHTML = "Clear";
-app.append(clearButton);
-clearButton.addEventListener("click", () =>{
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    lines.length = 0;
-    redoLines.length = 0;
-})
+interface Tool {
+    name: string;
+    onClick: () => void;
+}
 
-const undoButton = document.createElement("button");
-undoButton.innerHTML = "Undo";
-app.append(undoButton);
-undoButton.addEventListener("click", () =>{
-    const lastLine = lines.pop();
-    if(lastLine){
-        redoLines.push(lastLine);
-        canvas.dispatchEvent(new Event("drawing-changed"));
+const toolBar: Tool[] = [
+    {
+        name: "Clear",
+        onClick: () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            lines.length = 0;
+            redoLines.length = 0;
+            currentLineWidth = 3;
+            updateSelectedButton(null);
+        }
+    },
+    {
+        name: "Undo",
+        onClick: () => {
+            const lastLine = lines.pop();
+            if (lastLine) {
+                redoLines.push(lastLine);
+                canvas.dispatchEvent(new Event("drawing-changed"));
+                currentLineWidth = 3;
+            }
+            updateSelectedButton(null);
+        }
+    },
+    {
+        name: "Redo",
+        onClick: () => {
+            const lastRedoLine = redoLines.pop();
+            if (lastRedoLine) {
+                lines.push(lastRedoLine);
+                canvas.dispatchEvent(new Event("drawing-changed"));
+                currentLineWidth = 3;
+            }
+            updateSelectedButton(null);
+        }
+    },
+    {
+        name: "Thin Marker",
+        onClick: () => {
+            currentLineWidth = 1;
+            updateSelectedButton(thinMarkerButton);
+        }
+    },{
+        name: "Thick Marker",
+        onClick: () => {
+            currentLineWidth = 5;
+            updateSelectedButton(thickMarkerButton);
+        }
     }
-})
+];
 
-const redoButton = document.createElement("button");
-redoButton.innerHTML = "Redo";
-app.append(redoButton);
-redoButton.addEventListener("click", () =>{
-    const lastRedoLine = redoLines.pop();
-    if(lastRedoLine){
-        lines.push(lastRedoLine);
-        canvas.dispatchEvent(new Event("drawing-changed"));
+let thinMarkerButton: HTMLButtonElement;
+let thickMarkerButton: HTMLButtonElement;
+
+toolBar.forEach(tool => {
+    const button = document.createElement("button");
+    button.innerHTML = tool.name;
+    app.append(button);
+    button.addEventListener("click", tool.onClick);
+
+    if (tool.name === "Thin Marker") {
+        thinMarkerButton = button;
+    } else if (tool.name === "Thick Marker") {
+        thickMarkerButton = button;
     }
-})
+});
+
+function updateSelectedButton(button: HTMLButtonElement | null) {
+    if (selectedButton) {
+        selectedButton.classList.remove("selectedTool");
+    }
+    if (button) {
+        button.classList.add("selectedTool");
+    }
+    selectedButton = button;
+}
