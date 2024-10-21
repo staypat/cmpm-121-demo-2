@@ -1,5 +1,12 @@
 import "./style.css";
 
+const CANVAS_SIZE = 256;
+const THIN_MARKER_WIDTH = 1;
+const THICK_MARKER_WIDTH = 5;
+const SCALE_FACTOR = 4;
+const STICKER_SIZE = 30;
+const EXPORT_CANVAS_SIZE = 1024;
+
 const APP_NAME = "Sketch Pad";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -11,8 +18,8 @@ header.innerHTML = APP_NAME;
 app.append(header);
 
 const canvas = document.createElement("canvas");
-canvas.width = 256;
-canvas.height = 256;
+canvas.width = CANVAS_SIZE;
+canvas.height = CANVAS_SIZE;
 app.append(canvas);
 
 const ctx = canvas.getContext("2d")!;
@@ -81,7 +88,7 @@ class StickerPreviewCommand implements Command {
     private sticker: string;
     private size: number;
 
-    constructor(sticker: string, size: number) {
+    constructor(sticker: string, size: number = STICKER_SIZE) {
         this.x = 0;
         this.y = 0;
         this.sticker = sticker;
@@ -139,7 +146,7 @@ const stickerButtons: HTMLButtonElement[] = [];
 
 canvas.addEventListener("mousedown", (event) => {
     if (selectedSticker) {
-        currentCommand = new StickerPlacementCommand(selectedSticker, 30, event.offsetX, event.offsetY);
+        currentCommand = new StickerPlacementCommand(selectedSticker, STICKER_SIZE, event.offsetX, event.offsetY);
         currentCommand.execute(ctx);
         lines.push(currentCommand);
     } else {
@@ -237,7 +244,7 @@ const toolBar: Tool[] = [
     {
         name: "Thin Marker",
         onClick: () => {
-            currentLineWidth = 1;
+            currentLineWidth = THIN_MARKER_WIDTH
             toolPreview = new ToolPreview(currentLineWidth);
             updateSelectedButton(thinMarkerButton);
             selectedSticker = null;
@@ -247,7 +254,7 @@ const toolBar: Tool[] = [
     {
         name: "Thick Marker",
         onClick: () => {
-            currentLineWidth = 5;
+            currentLineWidth = THICK_MARKER_WIDTH;
             toolPreview = new ToolPreview(currentLineWidth);
             updateSelectedButton(thickMarkerButton);
             selectedSticker = null;
@@ -292,7 +299,7 @@ stickers.forEach(sticker => {
 
     button.addEventListener("click", () => {
         selectedSticker = sticker;
-        previewCommand = new StickerPreviewCommand(sticker, 30);
+        previewCommand = new StickerPreviewCommand(sticker, STICKER_SIZE);
         updateSelectedButton(button);
         canvas.dispatchEvent(new Event("tool-moved"));
     });
@@ -320,7 +327,7 @@ function addCustomSticker(): void {
 
         button.addEventListener("click", () => {
             selectedSticker = customSticker;
-            previewCommand = new StickerPreviewCommand(customSticker, 30);
+            previewCommand = new StickerPreviewCommand(customSticker, STICKER_SIZE);
             updateSelectedButton(button);
             canvas.dispatchEvent(new Event("tool-moved"));
         });
@@ -329,12 +336,12 @@ function addCustomSticker(): void {
 
 function exportCanvas(): void {
     const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = 1024;
-    exportCanvas.height = 1024;
+    exportCanvas.width = EXPORT_CANVAS_SIZE;
+    exportCanvas.height = EXPORT_CANVAS_SIZE;
     const exportCtx = exportCanvas.getContext("2d");
 
     if (exportCtx) {
-        exportCtx.scale(4, 4);
+        exportCtx.scale(SCALE_FACTOR, SCALE_FACTOR);
         lines.forEach(line => line.execute(exportCtx));
         const anchor = document.createElement("a");
         anchor.href = exportCanvas.toDataURL("image/png");
