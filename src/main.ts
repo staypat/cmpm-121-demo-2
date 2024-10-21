@@ -69,7 +69,6 @@ class ToolPreview implements Displayable {
 
     display(context: CanvasRenderingContext2D): void {
         context.lineWidth = 1;
-        context.strokeStyle = "gray";
         context.beginPath();
         context.arc(this.x, this.y, this.lineWidth / 2, 0, Math.PI * 2);
         context.stroke();
@@ -254,6 +253,12 @@ const toolBar: Tool[] = [
             selectedSticker = null;
             previewCommand = null;
         }
+    },
+    {
+        name: "Custom Sticker",
+        onClick: () => {
+            addCustomSticker();
+        }
     }
 ];
 
@@ -295,4 +300,23 @@ function updateSelectedButton(button: HTMLButtonElement | null) {
         button.classList.add("selectedTool");
     }
     selectedButton = button;
+}
+
+function addCustomSticker(): void {
+    const customSticker = prompt("Enter your custom sticker:", "🎇");
+
+    if (customSticker !== null && stickers.indexOf(customSticker) === -1) {
+        stickers.push(customSticker);
+        const button = document.createElement("button");
+        button.innerHTML = customSticker;
+        app.append(button);
+        stickerButtons.push(button);
+
+        button.addEventListener("click", () => {
+            selectedSticker = customSticker;
+            previewCommand = new StickerPreviewCommand(customSticker, 30);
+            updateSelectedButton(button);
+            canvas.dispatchEvent(new Event("tool-moved"));
+        });
+    }
 }
