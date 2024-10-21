@@ -255,11 +255,17 @@ const toolBar: Tool[] = [
         }
     },
     {
+        name: "Export",
+        onClick: () => {
+            exportCanvas();
+        }
+    },
+    {
         name: "Custom Sticker",
         onClick: () => {
             addCustomSticker();
         }
-    }
+    },
 ];
 
 let thinMarkerButton: HTMLButtonElement;
@@ -318,5 +324,21 @@ function addCustomSticker(): void {
             updateSelectedButton(button);
             canvas.dispatchEvent(new Event("tool-moved"));
         });
+    }
+}
+
+function exportCanvas(): void {
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = 1024;
+    exportCanvas.height = 1024;
+    const exportCtx = exportCanvas.getContext("2d");
+
+    if (exportCtx) {
+        exportCtx.scale(4, 4);
+        lines.forEach(line => line.execute(exportCtx));
+        const anchor = document.createElement("a");
+        anchor.href = exportCanvas.toDataURL("image/png");
+        anchor.download = "sketchpad.png";
+        anchor.click();
     }
 }
