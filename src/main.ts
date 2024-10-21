@@ -9,18 +9,30 @@ const EXPORT_CANVAS_SIZE = 1024;
 
 const APP_NAME = "Sketch Pad";
 const app = document.querySelector<HTMLDivElement>("#app")!;
-
 document.title = APP_NAME;
-app.innerHTML = APP_NAME;
+app.style.display = "flex";
+app.style.flexDirection = "column";
+app.style.alignItems = "center";
+app.style.justifyContent = "center";
+app.style.height = "100vh";
 
 const header = document.createElement("h1");
 header.innerHTML = APP_NAME;
+header.style.marginBottom = "20px";
 app.append(header);
+
+const canvasWrapper = document.createElement("div");
+canvasWrapper.style.display = "flex";
+canvasWrapper.style.justifyContent = "center";
+canvasWrapper.style.alignItems = "center";
+canvasWrapper.style.marginBottom = "20px";
 
 const canvas = document.createElement("canvas");
 canvas.width = CANVAS_SIZE;
 canvas.height = CANVAS_SIZE;
-app.append(canvas);
+canvas.style.border = "1px solid #fff";
+canvasWrapper.append(canvas);
+app.append(canvasWrapper);
 
 const ctx = canvas.getContext("2d")!;
 
@@ -36,10 +48,12 @@ interface Displayable {
 class MarkerLine implements Command {
     private points: { x: number; y: number; }[] = [];
     private lineWidth: number;
+    private color: string;
 
-    constructor(initialPoint: { x: number; y: number; }, lineWidth: number) {
+    constructor(initialPoint: { x: number; y: number; }, lineWidth: number, color: string) {
         this.points.push(initialPoint);
         this.lineWidth = lineWidth;
+        this.color = color;
     }
 
     updatePosition(x: number, y: number): void {
@@ -49,6 +63,7 @@ class MarkerLine implements Command {
     execute(context: CanvasRenderingContext2D): void {
         if (this.points.length > 1) {
             context.lineWidth = this.lineWidth;
+            context.strokeStyle = this.color;
             context.beginPath();
             const { x, y } = this.points[0];
             context.moveTo(x, y);
@@ -64,9 +79,11 @@ class ToolPreview implements Displayable {
     private x: number = 0;
     private y: number = 0;
     private lineWidth: number;
+    private color: string;
 
-    constructor(lineWidth: number) {
+    constructor(lineWidth: number, color: string) {
         this.lineWidth = lineWidth;
+        this.color = color;
     }
 
     updatePosition(x: number, y: number): void {
@@ -75,10 +92,13 @@ class ToolPreview implements Displayable {
     }
 
     display(context: CanvasRenderingContext2D): void {
-        context.lineWidth = 1;
+        context.save();
+        context.lineWidth = this.lineWidth;
+        context.strokeStyle = this.color;
         context.beginPath();
         context.arc(this.x, this.y, this.lineWidth / 2, 0, Math.PI * 2);
         context.stroke();
+        context.restore();
     }
 }
 
@@ -87,12 +107,14 @@ class StickerPreviewCommand implements Command {
     private y: number;
     private sticker: string;
     private size: number;
+    private rotation: number;
 
-    constructor(sticker: string, size: number = STICKER_SIZE) {
+    constructor(sticker: string, size: number = STICKER_SIZE, rotation: number = 0) {
         this.x = 0;
         this.y = 0;
         this.sticker = sticker;
         this.size = size;
+        this.rotation = rotation;
     }
 
     updatePosition(x: number, y: number): void {
@@ -101,9 +123,14 @@ class StickerPreviewCommand implements Command {
     }
 
     execute(context: CanvasRenderingContext2D): void {
+        context.save();
         context.font = `${this.size}px Arial`;
+        context.translate(this.x, this.y);
+        context.rotate(this.rotation * Math.PI / 180);
+        context.translate(-this.x, -this.y);
         context.fillStyle = 'rgba(0, 0, 0, 0.2)';
         context.fillText(this.sticker, this.x, this.y);
+        context.restore();
     }
 }
 
@@ -112,12 +139,14 @@ class StickerPlacementCommand implements Command {
     private y: number;
     private sticker: string;
     private size: number;
+    private rotation: number;
 
-    constructor(sticker: string, size: number, initialX: number, initialY: number) {
+    constructor(sticker: string, size: number, initialX: number, initialY: number, rotation: number = 0) {
         this.sticker = sticker;
         this.size = size;
         this.x = initialX;
         this.y = initialY;
+        this.rotation = rotation;
     }
 
     updatePosition(x: number, y: number): void {
@@ -126,9 +155,14 @@ class StickerPlacementCommand implements Command {
     }
 
     execute(context: CanvasRenderingContext2D): void {
+        context.save();
         context.font = `${this.size}px Arial`;
+        context.translate(this.x, this.y);
+        context.rotate(this.rotation * Math.PI / 180);
+        context.translate(-this.x, -this.y);
         context.fillStyle = 'black';
         context.fillText(this.sticker, this.x, this.y);
+        context.restore();
     }
 }
 
@@ -136,21 +170,71 @@ const lines: Command[] = [];
 const redoLines: Command[] = [];
 let currentCommand: Command | null = null;
 let previewCommand: StickerPreviewCommand | null = null;
-let toolPreview: ToolPreview | null = new ToolPreview(3);
+let toolPreview: ToolPreview | null = new ToolPreview(THIN_MARKER_WIDTH, "#000000");
 let currentLineWidth = 3;
 let selectedSticker: string | null = null;
 let selectedButton: HTMLButtonElement | null = null;
+let currentColor: string = "#000000";
+let currentRotation: number = 0;
+let thinMarkerButton: HTMLButtonElement;
+let thickMarkerButton: HTMLButtonElement;
 
-const stickers = ["🪄", "✨", "🔮"];
-const stickerButtons: HTMLButtonElement[] = [];
+function getRandomColor(): string {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
+function getRandomRotation(): number {
+    return Math.floor(Math.random() * 360);
+}
+
+function randomizeMarkerColor() {
+    currentColor = getRandomColor();
+    toolPreview = new ToolPreview(currentLineWidth, currentColor);
+}
+
+function randomizeStickerRotation() {
+    currentRotation = getRandomRotation();
+    if (selectedSticker && previewCommand) {
+        previewCommand = new StickerPreviewCommand(selectedSticker, STICKER_SIZE, currentRotation);
+    }
+}
+
+const colorOptions = ["#FF0000", "#FFFF00", "#00FF00", "#0000FF"];
+const colorContainer = document.createElement("div");
+colorContainer.style.display = "flex";
+colorContainer.style.justifyContent = "center";
+colorContainer.style.marginBottom = "20px";
+app.append(colorContainer);
+
+colorOptions.forEach(color => {
+    const colorButton = document.createElement("button");
+    colorButton.style.backgroundColor = color;
+    colorButton.style.width = "30px";
+    colorButton.style.height = "30px";
+    colorButton.style.margin = "0 5px";
+    colorContainer.append(colorButton);
+
+    colorButton.addEventListener("click", () => {
+        currentColor = color;
+        toolPreview = new ToolPreview(currentLineWidth, currentColor);
+        selectedSticker = null;
+        previewCommand = null;
+        updateSelectedButton(colorButton);
+    });
+});
 
 canvas.addEventListener("mousedown", (event) => {
     if (selectedSticker) {
-        currentCommand = new StickerPlacementCommand(selectedSticker, STICKER_SIZE, event.offsetX, event.offsetY);
+        currentCommand = new StickerPlacementCommand(selectedSticker, STICKER_SIZE, event.offsetX, event.offsetY, currentRotation);
         currentCommand.execute(ctx);
         lines.push(currentCommand);
     } else {
-        currentCommand = new MarkerLine({ x: event.offsetX, y: event.offsetY }, currentLineWidth);
+        currentCommand = new MarkerLine({ x: event.offsetX, y: event.offsetY }, currentLineWidth, currentColor);
         lines.push(currentCommand);
         redoLines.length = 0;
         toolPreview = null;
@@ -176,7 +260,7 @@ canvas.addEventListener("mousemove", (event) => {
 canvas.addEventListener("mouseup", () => {
     if (!(currentCommand instanceof StickerPlacementCommand)) {
         currentCommand = null;
-        toolPreview = new ToolPreview(currentLineWidth);
+        toolPreview = new ToolPreview(currentLineWidth, currentColor);
     }
     canvas.dispatchEvent(new Event("drawing-changed"));
 });
@@ -213,7 +297,7 @@ const toolBar: Tool[] = [
             lines.length = 0;
             redoLines.length = 0;
             currentLineWidth = 3;
-            toolPreview = new ToolPreview(currentLineWidth);
+            toolPreview = new ToolPreview(currentLineWidth, "#000000");
             selectedSticker = null;
             previewCommand = null;
             updateSelectedButton(null);
@@ -244,8 +328,8 @@ const toolBar: Tool[] = [
     {
         name: "Thin Marker",
         onClick: () => {
-            currentLineWidth = THIN_MARKER_WIDTH
-            toolPreview = new ToolPreview(currentLineWidth);
+            currentLineWidth = THIN_MARKER_WIDTH;
+            randomizeMarkerColor();
             updateSelectedButton(thinMarkerButton);
             selectedSticker = null;
             previewCommand = null;
@@ -255,7 +339,7 @@ const toolBar: Tool[] = [
         name: "Thick Marker",
         onClick: () => {
             currentLineWidth = THICK_MARKER_WIDTH;
-            toolPreview = new ToolPreview(currentLineWidth);
+            randomizeMarkerColor();
             updateSelectedButton(thickMarkerButton);
             selectedSticker = null;
             previewCommand = null;
@@ -275,13 +359,17 @@ const toolBar: Tool[] = [
     },
 ];
 
-let thinMarkerButton: HTMLButtonElement;
-let thickMarkerButton: HTMLButtonElement;
+const toolContainer = document.createElement("div");
+toolContainer.style.display = "flex";
+toolContainer.style.justifyContent = "center";
+toolContainer.style.marginTop = "20px";
+app.append(toolContainer);
 
 toolBar.forEach(tool => {
     const button = document.createElement("button");
     button.innerHTML = tool.name;
-    app.append(button);
+    button.style.margin = "0 5px";
+    toolContainer.append(button);
     button.addEventListener("click", tool.onClick);
 
     if (tool.name === "Thin Marker") {
@@ -291,17 +379,28 @@ toolBar.forEach(tool => {
     }
 });
 
+const stickers = ["🪄", "✨", "🔮"];
+const stickerButtons: HTMLButtonElement[] = [];
+
+const stickerContainer = document.createElement("div");
+stickerContainer.style.display = "flex";
+stickerContainer.style.justifyContent = "center";
+stickerContainer.style.marginTop = "10px";
+app.append(stickerContainer);
+
 stickers.forEach(sticker => {
     const button = document.createElement("button");
     button.innerHTML = sticker;
-    app.append(button);
+    button.style.margin = "0 5px";
+    stickerContainer.append(button);
     stickerButtons.push(button);
 
     button.addEventListener("click", () => {
         selectedSticker = sticker;
-        previewCommand = new StickerPreviewCommand(sticker, STICKER_SIZE);
+        previewCommand = new StickerPreviewCommand(sticker, STICKER_SIZE, currentRotation);
         updateSelectedButton(button);
         canvas.dispatchEvent(new Event("tool-moved"));
+        randomizeStickerRotation();
     });
 });
 
@@ -322,14 +421,16 @@ function addCustomSticker(): void {
         stickers.push(customSticker);
         const button = document.createElement("button");
         button.innerHTML = customSticker;
-        app.append(button);
+        button.style.margin = "0 5px";
+        stickerContainer.append(button);
         stickerButtons.push(button);
 
         button.addEventListener("click", () => {
             selectedSticker = customSticker;
-            previewCommand = new StickerPreviewCommand(customSticker, STICKER_SIZE);
+            previewCommand = new StickerPreviewCommand(customSticker, STICKER_SIZE, currentRotation);
             updateSelectedButton(button);
             canvas.dispatchEvent(new Event("tool-moved"));
+            randomizeStickerRotation();
         });
     }
 }
