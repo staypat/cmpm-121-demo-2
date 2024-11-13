@@ -211,21 +211,39 @@ colorContainer.style.justifyContent = "center";
 colorContainer.style.marginBottom = "20px";
 app.append(colorContainer);
 
-colorOptions.forEach(color => {
-    const colorButton = document.createElement("button");
-    colorButton.style.backgroundColor = color;
-    colorButton.style.width = "30px";
-    colorButton.style.height = "30px";
-    colorButton.style.margin = "0 5px";
-    colorContainer.append(colorButton);
+function createButton(
+    label: string,
+    backgroundColor: string | null,
+    onClick: () => void,
+    container: HTMLDivElement
+): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.innerHTML = label;
+    
+    if (backgroundColor) {
+        button.style.backgroundColor = backgroundColor;
+    }
+    
+    button.style.margin = "0 5px";
+    button.addEventListener("click", onClick);
+    container.append(button);
 
-    colorButton.addEventListener("click", () => {
-        currentColor = color;
-        toolPreview = new ToolPreview(currentLineWidth, currentColor);
-        selectedSticker = null;
-        previewCommand = null;
-        updateSelectedButton(colorButton);
-    });
+    return button;
+}
+
+colorOptions.forEach(color => {
+    createButton(
+        "", // No label as color buttons use background
+        color,
+        () => {
+            currentColor = color;
+            toolPreview = new ToolPreview(currentLineWidth, currentColor);
+            selectedSticker = null;
+            previewCommand = null;
+            updateSelectedButton(null);
+        },
+        colorContainer
+    );
 });
 
 canvas.addEventListener("mousedown", (event) => {
@@ -366,11 +384,12 @@ toolContainer.style.marginTop = "20px";
 app.append(toolContainer);
 
 toolBar.forEach(tool => {
-    const button = document.createElement("button");
-    button.innerHTML = tool.name;
-    button.style.margin = "0 5px";
-    toolContainer.append(button);
-    button.addEventListener("click", tool.onClick);
+    const button = createButton(
+        tool.name, 
+        null,
+        tool.onClick,
+        toolContainer
+    );
 
     if (tool.name === "Thin Marker") {
         thinMarkerButton = button;
@@ -389,19 +408,19 @@ stickerContainer.style.marginTop = "10px";
 app.append(stickerContainer);
 
 stickers.forEach(sticker => {
-    const button = document.createElement("button");
-    button.innerHTML = sticker;
-    button.style.margin = "0 5px";
-    stickerContainer.append(button);
+    const button = createButton(
+        sticker, 
+        null,
+        () => {
+            selectedSticker = sticker;
+            previewCommand = new StickerPreviewCommand(sticker, STICKER_SIZE, currentRotation);
+            updateSelectedButton(button);
+            canvas.dispatchEvent(new Event("tool-moved"));
+            randomizeStickerRotation();
+        },
+        stickerContainer
+    );
     stickerButtons.push(button);
-
-    button.addEventListener("click", () => {
-        selectedSticker = sticker;
-        previewCommand = new StickerPreviewCommand(sticker, STICKER_SIZE, currentRotation);
-        updateSelectedButton(button);
-        canvas.dispatchEvent(new Event("tool-moved"));
-        randomizeStickerRotation();
-    });
 });
 
 function updateSelectedButton(button: HTMLButtonElement | null) {
@@ -419,19 +438,19 @@ function addCustomSticker(): void {
 
     if (customSticker !== null && stickers.indexOf(customSticker) === -1) {
         stickers.push(customSticker);
-        const button = document.createElement("button");
-        button.innerHTML = customSticker;
-        button.style.margin = "0 5px";
-        stickerContainer.append(button);
+        const button = createButton(
+            customSticker, 
+            null,
+            () => {
+                selectedSticker = customSticker;
+                previewCommand = new StickerPreviewCommand(customSticker, STICKER_SIZE, currentRotation);
+                updateSelectedButton(button);
+                canvas.dispatchEvent(new Event("tool-moved"));
+                randomizeStickerRotation();
+            },
+            stickerContainer
+        );
         stickerButtons.push(button);
-
-        button.addEventListener("click", () => {
-            selectedSticker = customSticker;
-            previewCommand = new StickerPreviewCommand(customSticker, STICKER_SIZE, currentRotation);
-            updateSelectedButton(button);
-            canvas.dispatchEvent(new Event("tool-moved"));
-            randomizeStickerRotation();
-        });
     }
 }
 
